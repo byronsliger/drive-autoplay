@@ -1,0 +1,7 @@
+.git
+.github
+config.js
+*.har
+*.md
+docker-compose.yml
+vercel.json

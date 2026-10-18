@@ -1,0 +1,7 @@
+# Local runtime config with the Drive API key
+config.js
+.env
+*.har
+*.stackdump
+.playwright-mcp/
+node_modules/

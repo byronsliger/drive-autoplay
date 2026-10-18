@@ -1,0 +1,10 @@
+# Portainer stack: Stacks -> Add stack -> paste this, then set DRIVE_API_KEY under "Environment variables".
+services:
+  drive-autoplay:
+    image: ghcr.io/byronsliger/drive-autoplay:latest
+    container_name: drive-autoplay
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DRIVE_API_KEY: ${DRIVE_API_KEY}
