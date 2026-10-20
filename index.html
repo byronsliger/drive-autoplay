@@ -43,7 +43,7 @@
       </button>
     </div>
   </header>
-  <p class="lede">Escucha audiolibros, podcasts o videos de una carpeta pública de Google Drive uno tras otro. Recuerda los capítulos vistos y dónde te quedaste en cada uno, aunque cierres el navegador.</p>
+  <p class="lede">Escucha una carpeta de Drive de principio a fin. Recuerda dónde te quedaste.</p>
   <input id="bgFile" type="file" accept="image/*" hidden>
 
   <form id="f">
@@ -85,6 +85,11 @@
       </div>
     </section>
     <ol id="list" aria-label="Capítulos de la carpeta"></ol>
+    <div id="rowMenu" class="menu" role="menu" aria-label="Opciones del capítulo" hidden>
+      <button id="menuUpTo" type="button" role="menuitem">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg><span></span>
+      </button>
+    </div>
     <button id="fab" class="fab" type="button" aria-label="Reproducir" title="Reproducir (arrastra para moverlo)">
       <svg class="icon play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.5.86l10.4-6.4a1 1 0 0 0 0-1.72L9.5 4.74A1 1 0 0 0 8 5.6Z"/></svg>
       <svg class="icon pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>

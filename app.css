@@ -107,8 +107,8 @@ input:focus-visible { outline-offset: 0; border-color: var(--acc); }
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
   padding: 12px; box-shadow: var(--shadow);
 }
-.media { border-radius: 10px; overflow: hidden; background: var(--media); }
-#player { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 60vh; background: transparent; }
+.media { border-radius: 10px; overflow: hidden; }
+#player { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 60vh; background: var(--media); }
 #audio { display: block; width: 100%; height: 54px; }
 /* Background image shown above the audio controls. */
 #cover { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 60vh; object-fit: cover; }
@@ -134,10 +134,11 @@ ol {
   max-height: 50vh; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
 }
 li { display: flex; align-items: center; gap: 4px; border-radius: 10px; transition: background-color .15s; }
-li:hover, li.current { background: var(--acc-soft); }
+li:hover, li.current, li.menu-open { background: var(--acc-soft); }
 .track {
   display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 52px; padding: 8px 12px;
   background: transparent; border: 0; border-radius: 10px; text-align: left;
+  -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; /* long-press opens the row menu */
 }
 li.current .track { color: var(--acc-fg); font-weight: 600; }
 .num { width: 2ch; min-width: 24px; text-align: right; color: var(--mut); font-size: .85rem; font-variant-numeric: tabular-nums; }
@@ -156,15 +157,16 @@ li.done .bar i { background: var(--ok); }
 }
 .mark:hover { color: var(--mut); border-color: var(--line); }
 li.done .mark { color: var(--ok); }
-.upto {
-  display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; flex: none;
-  background: transparent; border: 1px solid transparent; border-radius: 10px; color: var(--mut);
-  transition: color .15s, border-color .15s, opacity .15s;
+.menu {
+  position: fixed; z-index: 20; min-width: 220px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / .25);
 }
-.upto:hover { color: var(--ok); border-color: var(--line); }
-.upto .icon { width: 18px; height: 18px; }
-/* On pointer devices the bulk action only shows on the hovered or focused row. */
-@media (hover: hover) { li:not(:hover):not(:focus-within) .upto { opacity: 0; } }
+.menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px;
+  background: transparent; border: 0; border-radius: 8px; text-align: left;
+}
+.menu button:hover, .menu button:focus-visible { background: var(--acc-soft); }
+.menu .icon { color: var(--ok); }
 .link { padding: 0; background: none; border: 0; color: var(--acc-fg); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Floating play/pause: always on top, draggable anywhere; room is left so it never hides the last row. */

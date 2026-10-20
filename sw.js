@@ -1,6 +1,6 @@
 // Minimal service worker: caches the app shell for fast startup and installability.
 // Cross-origin requests (Drive API, fonts) are not touched, so ranged media streaming goes straight to the network.
-const CACHE = "autoplay-v6";
+const CACHE = "autoplay-v7";
 const SHELL = ["/", "/index.html", "/app.js", "/app.css", "/theme.js", "/fonts.css", "/figtree-latin.woff2", "/fraunces-latin.woff2", "/manifest.webmanifest", "/favicon.svg", "/icon-192.png", "/icon-512.png", "/icon-maskable-192.png", "/icon-maskable-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -21,20 +21,21 @@ self.addEventListener("fetch", e => {
   // Media is streamed with range requests through /media/, and /config.js holds runtime settings: never cache them.
   if (req.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/media/") || url.pathname === "/config.js") return;
 
-  // Page: network first so updates show on reload, cache when offline.
-  if (req.mode === "navigate") {
+  // Page, scripts and styles: network first so an update never mixes new markup with old code; cache when offline.
+  if (req.mode === "navigate" || /\.(js|css|webmanifest)$/.test(url.pathname)) {
+    const key = req.mode === "navigate" ? "/index.html" : req;
     e.respondWith(
       fetch(req)
         .then(res => {
-          if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put("/index.html", copy)); }
+          if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(key, copy)); }
           return res;
         })
-        .catch(() => caches.match("/index.html"))
+        .catch(() => caches.match(key))
     );
     return;
   }
 
-  // Static files: stale-while-revalidate.
+  // Images and fonts: stale-while-revalidate.
   e.respondWith(
     caches.match(req).then(hit => {
       const net = fetch(req)

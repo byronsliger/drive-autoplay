@@ -110,7 +110,6 @@ async function listFolder(id) {
 }
 
 const checkIcon = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.8"/></svg>';
-const checkAllIcon = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>';
 
 function render() {
   listEl.innerHTML = "";
@@ -122,16 +121,13 @@ function render() {
     b.querySelector(".num").textContent = i + 1;
     b.querySelector(".name").textContent = label(f.name);
     b.querySelector(".size").textContent = fmt(+f.size);
-    b.onclick = () => play(i);
+    b.onclick = () => { if (suppressClick) { suppressClick = false; return; } play(i); };
+    b.oncontextmenu = e => { e.preventDefault(); openRowMenu(i); };
+    b.addEventListener("pointerdown", e => holdStart(e, i));
     const mark = document.createElement("button");
     mark.type = "button"; mark.className = "mark"; mark.innerHTML = checkIcon;
     mark.onclick = () => toggleDone(i);
-    const upto = document.createElement("button");
-    upto.type = "button"; upto.className = "upto"; upto.innerHTML = checkAllIcon;
-    upto.title = "Marcar como vistos hasta aquí";
-    upto.setAttribute("aria-label", "Marcar como vistos todos hasta: " + label(f.name));
-    upto.onclick = () => markUpTo(i);
-    li.append(b, upto, mark); listEl.append(li);
+    li.append(b, mark); listEl.append(li);
     const row = { li, track: b, bar: b.querySelector(".bar"), fill: b.querySelector(".bar i"), mark };
     updateRow(i, row);
     return row;
@@ -176,6 +172,52 @@ function revealRow(li, atTop = false) {
 }
 
 const refreshAll = () => { rows.forEach((_, j) => updateRow(j)); updateCount(); };
+
+// Row menu: long-press a chapter (right-click or the menu key on a computer) to mark it and all the
+// previous ones as watched.
+const rowMenu = $("rowMenu"), menuUpTo = $("menuUpTo"), HOLD_MS = 500;
+let hold = null, menuRow = -1, suppressClick = false;
+function openRowMenu(i) {
+  cancelHold();
+  if (menuRow >= 0 && menuRow !== i) closeRowMenu();
+  menuRow = i;
+  menuUpTo.querySelector("span").textContent = i === 0 ? "Marcar como visto" : `Marcar como vistos del 1 al ${i + 1}`;
+  rowMenu.hidden = false;
+  const r = rows[i].li.getBoundingClientRect(), w = rowMenu.offsetWidth, h = rowMenu.offsetHeight;
+  const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + 16));
+  const y = r.bottom + h + 8 <= innerHeight ? r.bottom + 4 : Math.max(8, r.top - h - 4);
+  Object.assign(rowMenu.style, { left: x + "px", top: y + "px" });
+  rows[i].li.classList.add("menu-open");
+  menuUpTo.focus({ preventScroll: true });
+}
+function closeRowMenu(refocus = false) {
+  if (menuRow < 0) return;
+  rowMenu.hidden = true;
+  const row = rows[menuRow];
+  menuRow = -1;
+  if (row) { row.li.classList.remove("menu-open"); if (refocus) row.track.focus({ preventScroll: true }); }
+}
+const cancelHold = () => { if (hold) { clearTimeout(hold.timer); hold = null; } };
+function holdStart(e, i) {
+  suppressClick = false; // a long-press that never produced a click must not swallow the next tap
+  if (e.pointerType === "mouse") return; // mice use right-click
+  cancelHold();
+  hold = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: setTimeout(() => {
+    hold = null; suppressClick = true;
+    try { navigator.vibrate?.(15); } catch {}
+    openRowMenu(i);
+  }, HOLD_MS) };
+}
+// Scrolling or lifting the finger before the delay is a normal tap or swipe, not a long-press.
+listEl.addEventListener("pointermove", e => {
+  if (hold && e.pointerId === hold.id && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) cancelHold();
+});
+for (const ev of ["pointerup", "pointercancel"]) listEl.addEventListener(ev, cancelHold);
+listEl.addEventListener("scroll", () => closeRowMenu());
+addEventListener("resize", () => closeRowMenu());
+document.addEventListener("pointerdown", e => { if (!rowMenu.contains(e.target)) closeRowMenu(); }, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeRowMenu(true); });
+menuUpTo.onclick = () => { const i = menuRow; closeRowMenu(true); markUpTo(i); };
 
 // Marks chapters 1..i (inclusive) as watched, with an undo link in the status line.
 function markUpTo(i) {
@@ -391,7 +433,7 @@ async function load(id, resumeKey) {
     progress = store.get("progress", {}); // may have changed in another tab
     files = await listFolder(id);
     if (!files.length) { say("La carpeta no contiene archivos de audio o video (o no es pública).", true); return; }
-    say(files.length + (files.length === 1 ? " archivo" : " archivos") + " en la carpeta.");
+    say(files.length + (files.length === 1 ? " archivo" : " archivos") + " en la carpeta. Mantén presionado un capítulo para marcar como vistos todos hasta ese.");
     store.set("folder", id);
     try { history.replaceState(null, "", "?folder=" + id); } catch {} // shareable link
     $("app").hidden = false;
