@@ -8,3 +8,10 @@ services:
       - "8080:8080"
     environment:
       DRIVE_API_KEY: ${DRIVE_API_KEY}
+    # Hardening: the app writes nothing to disk and needs no Linux capabilities.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 64

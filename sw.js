@@ -1,7 +1,7 @@
 // Minimal service worker: caches the app shell for fast startup and installability.
 // Cross-origin requests (Drive API, fonts) are not touched, so ranged media streaming goes straight to the network.
-const CACHE = "autoplay-v4";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg", "/icon-192.png", "/icon-512.png", "/icon-maskable-192.png", "/icon-maskable-512.png", "/apple-touch-icon.png"];
+const CACHE = "autoplay-v5";
+const SHELL = ["/", "/index.html", "/app.js", "/app.css", "/theme.js", "/fonts.css", "/figtree-latin.woff2", "/fraunces-latin.woff2", "/manifest.webmanifest", "/favicon.svg", "/icon-192.png", "/icon-512.png", "/icon-maskable-192.png", "/icon-maskable-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
