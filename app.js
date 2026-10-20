@@ -4,7 +4,11 @@ const API_KEY = window.DRIVE_API_KEY || "";
 const SEEK_STEP = 10; // seconds for the back/forward buttons
 
 const $ = id => document.getElementById(id);
-const player = $("player"), listEl = $("list"), msg = $("msg"), rateSel = $("rate");
+const video = $("player"), audio = $("audio"), listEl = $("list"), msg = $("msg"), rateSel = $("rate");
+// Audio files play in <audio>: browsers restrict a hidden page's <video> elements more in the background.
+let player = audio;
+// Listeners go on both elements but only react to the one in use.
+const onMedia = (type, fn) => { for (const el of [video, audio]) el.addEventListener(type, e => { if (e.target === player) fn(e); }); };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -26,10 +30,13 @@ sysDark.addEventListener("change", syncTheme);
 syncTheme();
 
 // Background image for audio files: downscaled and stored only in this browser.
-const media = $("media"), bgClear = $("bgClear"), bgFile = $("bgFile");
+const cover = $("cover"), bgClear = $("bgClear"), bgFile = $("bgFile");
+let bgUrl = null;
+const syncCover = () => { cover.hidden = !bgUrl || player !== audio; };
 function applyBg(url) {
-  if (url) player.poster = url; else player.removeAttribute("poster");
-  media.classList.toggle("has-bg", !!url);
+  bgUrl = url;
+  if (url) cover.src = url; else cover.removeAttribute("src");
+  syncCover();
   bgClear.hidden = !url;
 }
 applyBg(store.get("bg", null));
@@ -57,7 +64,7 @@ let progress = store.get("progress", {}), rows = [];
 
 for (const r of [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]) rateSel.add(new Option(r + "x", r));
 rateSel.value = rate;
-player.defaultPlaybackRate = rate;
+video.defaultPlaybackRate = audio.defaultPlaybackRate = rate;
 
 function say(text, err) { msg.textContent = text; msg.className = err ? "err" : ""; }
 
@@ -188,6 +195,13 @@ function markUpTo(i) {
   msg.append(" ", undo);
 }
 
+// Switches between the <audio> and <video> elements; the idle one is emptied so it stops downloading.
+function useElement(el) {
+  if (el !== player) { player.pause(); player.removeAttribute("src"); player.load(); player = el; }
+  video.hidden = player !== video; audio.hidden = player !== audio;
+  syncCover(); syncFab();
+}
+
 // Loads file i at its saved position. Only plays when autoplay=true (list click, prev/next or end of file);
 // on page or folder load it is left ready and paused.
 function play(i, autoplay = true) {
@@ -196,9 +210,9 @@ function play(i, autoplay = true) {
   const prev = idx;
   idx = i;
   const f = files[i], p = stateOf(f);
-  player.classList.toggle("audio", !f.mimeType.startsWith("video/"));
+  useElement(f.mimeType.startsWith("video/") ? video : audio);
   player.src = (useProxy ? proxyUrl : apiUrl)(f);
-  player.dataset.retried = 0; lastTime = 0;
+  player.dataset.retried = 0; lastTime = 0; finished = false;
   // A watched chapter that was left at the end starts over; otherwise resume where it was left.
   player.dataset.resume = p && !nearEnd(p.t, p.d) ? p.t : 0;
   if (autoplay) player.play().catch(() => {});
@@ -212,32 +226,42 @@ function play(i, autoplay = true) {
 }
 
 // playbackRate resets when src changes, so it is always reapplied.
-player.addEventListener("loadedmetadata", () => {
+onMedia("loadedmetadata", () => {
   player.playbackRate = rate;
   const t = +player.dataset.resume;
   if (t > 0 && t < player.duration - 2) player.currentTime = t;
   player.dataset.resume = 0;
 });
-player.addEventListener("ratechange", () => {
+onMedia("ratechange", () => {
   // Adopt speed changes made through the native controls.
   if (player.playbackRate !== rate && player.readyState > 0) setRate(player.playbackRate);
 });
-player.addEventListener("ended", () => {
-  if (idx < 0) return;
+// Moves on about a second before the end, while still playing: with the screen off, phones freeze a page
+// that went silent, so waiting for "ended" can stall until the screen is turned back on.
+const EARLY_NEXT_S = 1;
+let finished = false;
+function finishChapter() {
+  if (idx < 0 || finished) return;
+  finished = true;
   const e = entry(files[idx]);
   e.done = true; e.t = 0;
   saveProgress(); updateRow(idx); updateCount();
   if (idx + 1 < files.length) play(idx + 1);
+}
+onMedia("ended", finishChapter);
+onMedia("timeupdate", () => {
+  if (player.paused || !(player.duration > 5) || +player.dataset.resume > 0) return;
+  if ((player.duration - player.currentTime) / player.playbackRate <= EARLY_NEXT_S) finishChapter();
 });
 // Remembered so a failed request can be retried at the same second and in the same play/pause state.
 let lastTime = 0, wantPlay = false;
 const trackTime = () => { if (!(+player.dataset.resume > 0)) lastTime = player.currentTime; };
-player.addEventListener("timeupdate", trackTime);
-player.addEventListener("seeking", trackTime);
-player.addEventListener("play", () => { wantPlay = true; });
-player.addEventListener("pause", () => { if (!player.error) wantPlay = false; });
+onMedia("timeupdate", trackTime);
+onMedia("seeking", trackTime);
+onMedia("play", () => { wantPlay = true; });
+onMedia("pause", () => { if (!player.error) wantPlay = false; });
 
-player.addEventListener("error", async () => {
+onMedia("error", async () => {
   if (!player.src || idx < 0) return;
   const f = files[idx];
   // Retry once on the other endpoint at the same position and play/pause state. Failures often happen
@@ -278,9 +302,9 @@ function savePos() {
   if (!e.done && nearEnd(e.t, e.d)) { e.done = true; updateCount(); }
   saveProgress(); updateRow(idx);
 }
-player.addEventListener("timeupdate", () => { if (Date.now() - lastSave >= 5000) savePos(); });
-player.addEventListener("pause", savePos);
-player.addEventListener("seeked", savePos);
+onMedia("timeupdate", () => { if (Date.now() - lastSave >= 5000) savePos(); });
+onMedia("pause", savePos);
+onMedia("seeked", savePos);
 // Save when the tab is hidden or the browser is closed.
 addEventListener("pagehide", savePos);
 document.addEventListener("visibilitychange", () => { if (document.hidden) savePos(); });
@@ -293,7 +317,7 @@ function seek(delta) {
 function setRate(r) {
   rate = r; store.set("rate", r);
   rateSel.value = r;
-  player.defaultPlaybackRate = r;
+  video.defaultPlaybackRate = audio.defaultPlaybackRate = r;
   if (player.playbackRate !== r) player.playbackRate = r;
 }
 rateSel.onchange = () => setRate(+rateSel.value);
@@ -355,7 +379,7 @@ fab.onclick = () => {
   if (fabDragged) { fabDragged = false; return; } // the click that ends a drag is not a tap
   if (player.paused) player.play().catch(() => {}); else player.pause();
 };
-for (const ev of ["play", "pause", "emptied"]) player.addEventListener(ev, syncFab);
+for (const ev of ["play", "pause", "emptied"]) onMedia(ev, syncFab);
 addEventListener("resize", () => placeFab());
 
 async function load(id, resumeKey) {
