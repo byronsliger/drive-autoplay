@@ -254,7 +254,7 @@ function play(i, autoplay = true) {
   const f = files[i], p = stateOf(f);
   useElement(f.mimeType.startsWith("video/") ? video : audio);
   player.src = (useProxy ? proxyUrl : apiUrl)(f);
-  player.dataset.retried = 0; lastTime = 0; finished = false;
+  player.dataset.retried = 0; lastTime = 0;
   // A watched chapter that was left at the end starts over; otherwise resume where it was left.
   player.dataset.resume = p && !nearEnd(p.t, p.d) ? p.t : 0;
   if (autoplay) player.play().catch(() => {});
@@ -278,22 +278,12 @@ onMedia("ratechange", () => {
   // Adopt speed changes made through the native controls.
   if (player.playbackRate !== rate && player.readyState > 0) setRate(player.playbackRate);
 });
-// Moves on about a second before the end, while still playing: with the screen off, phones freeze a page
-// that went silent, so waiting for "ended" can stall until the screen is turned back on.
-const EARLY_NEXT_S = 1;
-let finished = false;
-function finishChapter() {
-  if (idx < 0 || finished) return;
-  finished = true;
+onMedia("ended", () => {
+  if (idx < 0) return;
   const e = entry(files[idx]);
   e.done = true; e.t = 0;
   saveProgress(); updateRow(idx); updateCount();
   if (idx + 1 < files.length) play(idx + 1);
-}
-onMedia("ended", finishChapter);
-onMedia("timeupdate", () => {
-  if (player.paused || !(player.duration > 5) || +player.dataset.resume > 0) return;
-  if ((player.duration - player.currentTime) / player.playbackRate <= EARLY_NEXT_S) finishChapter();
 });
 // Remembered so a failed request can be retried at the same second and in the same play/pause state.
 let lastTime = 0, wantPlay = false;
