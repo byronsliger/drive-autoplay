@@ -166,6 +166,21 @@ li.done .mark { color: var(--ok); }
 @media (hover: hover) { li:not(:hover):not(:focus-within) .upto { opacity: 0; } }
 .link { padding: 0; background: none; border: 0; color: var(--acc-fg); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 
+/* Floating play/pause: always on top, draggable anywhere; room is left so it never hides the last row. */
+#app { padding-bottom: 96px; }
+.fab {
+  position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
+  display: grid; place-items: center; width: 76px; height: 76px; padding: 0;
+  background: var(--acc); color: var(--onacc); border: 0; border-radius: 50%;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .3); touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent; transition: transform .15s, box-shadow .15s;
+}
+.fab:active { transform: scale(.95); }
+.fab.dragging { transform: scale(1.06); box-shadow: 0 10px 28px rgb(0 0 0 / .35); cursor: grabbing; }
+.fab .icon { width: 34px; height: 34px; fill: currentColor; stroke: none; }
+.fab .pause, .fab.playing .play { display: none; }
+.fab.playing .pause { display: block; }
+
 [hidden] { display: none !important; }
 @media (max-width: 480px) {
   .size { display: none; }

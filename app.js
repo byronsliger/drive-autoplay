@@ -161,10 +161,10 @@ function toggleDone(i) {
   saveProgress(); updateRow(i); updateCount();
 }
 
-// Scrolls only the list (not the page) so the row is visible.
-function revealRow(li) {
+// Scrolls only the list (not the page) so the row is visible; atTop puts it first, with the next ones below.
+function revealRow(li, atTop = false) {
   const box = listEl.getBoundingClientRect(), r = li.getBoundingClientRect();
-  if (r.top < box.top) listEl.scrollTop += r.top - box.top - 4;
+  if (atTop || r.top < box.top) listEl.scrollTop += r.top - box.top - 4;
   else if (r.bottom > box.bottom) listEl.scrollTop += r.bottom - box.bottom + 4;
 }
 
@@ -315,6 +315,49 @@ if ("mediaSession" in navigator) {
   }
 }
 
+// Floating play/pause button. A tap toggles playback; dragging moves it and the spot is remembered
+// as a fraction of the free space, so it stays on screen after rotating or resizing.
+const fab = $("fab"), FAB_GAP = 8;
+let fabPos = store.get("fabPos", null), fabDrag = null, fabDragged = false;
+function placeFab(x, y) {
+  const w = fab.offsetWidth, h = fab.offsetHeight, maxX = innerWidth - w - FAB_GAP, maxY = innerHeight - h - FAB_GAP;
+  if (x === undefined) { if (!fabPos || !w) return; x = FAB_GAP + fabPos.x * (maxX - FAB_GAP); y = FAB_GAP + fabPos.y * (maxY - FAB_GAP); }
+  x = Math.max(FAB_GAP, Math.min(maxX, x)); y = Math.max(FAB_GAP, Math.min(maxY, y));
+  Object.assign(fab.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto" });
+  return { x: (x - FAB_GAP) / Math.max(1, maxX - FAB_GAP), y: (y - FAB_GAP) / Math.max(1, maxY - FAB_GAP) };
+}
+function syncFab() {
+  const on = !player.paused, text = on ? "Pausar" : "Reproducir";
+  fab.classList.toggle("playing", on);
+  fab.setAttribute("aria-label", text); fab.title = text + " (arrastra para moverlo)";
+}
+fab.addEventListener("pointerdown", e => {
+  if (e.button) return;
+  const r = fab.getBoundingClientRect();
+  fabDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false };
+  fab.setPointerCapture(e.pointerId);
+});
+fab.addEventListener("pointermove", e => {
+  if (!fabDrag || e.pointerId !== fabDrag.id) return;
+  // A small threshold keeps a shaky tap from turning into a drag.
+  if (!fabDrag.moved && Math.hypot(e.clientX - fabDrag.sx, e.clientY - fabDrag.sy) < 8) return;
+  fabDrag.moved = true; fab.classList.add("dragging");
+  fabPos = placeFab(e.clientX - fabDrag.dx, e.clientY - fabDrag.dy);
+});
+const endFabDrag = e => {
+  if (!fabDrag || e.pointerId !== fabDrag.id) return;
+  if (fabDrag.moved) { fabDragged = true; store.set("fabPos", fabPos); }
+  fabDrag = null; fab.classList.remove("dragging");
+};
+fab.addEventListener("pointerup", endFabDrag);
+fab.addEventListener("pointercancel", endFabDrag);
+fab.onclick = () => {
+  if (fabDragged) { fabDragged = false; return; } // the click that ends a drag is not a tap
+  if (player.paused) player.play().catch(() => {}); else player.pause();
+};
+for (const ev of ["play", "pause", "emptied"]) player.addEventListener(ev, syncFab);
+addEventListener("resize", () => placeFab());
+
 async function load(id, resumeKey) {
   say("Cargando carpeta…");
   $("go").disabled = true;
@@ -333,6 +376,8 @@ async function load(id, resumeKey) {
     let i = resumeKey ? files.findIndex(f => fileKey(f) === resumeKey) : -1;
     if (i < 0) i = Math.max(0, files.findIndex(f => !stateOf(f)?.done));
     play(i, false);
+    revealRow(rows[i].li, true);
+    placeFab();
   } catch (e) { say(e.message || "No se pudo cargar la carpeta.", true); }
   finally { $("go").disabled = false; }
 }
